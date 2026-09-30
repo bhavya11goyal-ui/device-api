@@ -4,9 +4,9 @@ A REST API for persisting and managing device resources: create, update (full/pa
 fetch (single/all/by brand/by state), and delete, with domain rules enforced around device
 state.
 
-> Status: project scaffolded (Maven build, dependencies, package layout). Domain model,
-> persistence, and API implementation are next. This document will be filled in
-> (run instructions, limitations) as the project progresses.
+> Status: feature-complete against the brief - CRUD, filtering, all three business
+> invariants, concurrency safety, tests, and containerization are all in place and
+> verified end-to-end. See Known Limitations below for what's intentionally left out.
 
 ## Domain model
 
@@ -50,7 +50,6 @@ filterable, rather than duplicated endpoints.
 | Error format | RFC 7807 `ProblemDetail` |
 | Test DB | Testcontainers (real Postgres, no in-memory DB even in tests) |
 | Containerization | Multi-stage Dockerfile + docker-compose (app + Postgres) |
-| Coverage | JaCoCo with an enforced minimum threshold |
 
 Design decisions and their trade-offs (ID strategy, error format, PATCH semantics,
 layered vs hexagonal, etc.) are documented in [`docs/DECISIONS.md`](docs/DECISIONS.md).
@@ -64,9 +63,48 @@ layered vs hexagonal, etc.) are documented in [`docs/DECISIONS.md`](docs/DECISIO
 
 ## Running locally
 
-_(To be documented once the project is scaffolded: `docker compose up`, local build/run,
-where to find Swagger UI, how to run the test suite.)_
+**Via Docker Compose (app + Postgres, no local Java/Maven needed):**
+
+```bash
+docker compose up --build
+```
+
+Once healthy:
+- API: `http://localhost:8080/api/v1/devices`
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Health: `http://localhost:8080/actuator/health`
+- Prometheus metrics: `http://localhost:8080/actuator/prometheus`
+
+Stop and remove everything (including the Postgres volume) with `docker compose down -v`.
+
+**Locally without Docker (needs a running Postgres on `localhost:5432` with a `devices`
+database/user/password, or override via the `DB_*` env vars in `application.yml`):**
+
+```bash
+./mvnw spring-boot:run
+```
+
+**Running the test suite** (needs Docker running - repository and full integration tests
+use Testcontainers):
+
+```bash
+./mvnw verify
+```
 
 ## Known limitations / future improvements
 
-_(To be filled in as implementation proceeds.)_
+- **No request correlation ID.** Considered and deliberately not built - genuinely useful
+  in a multi-service/distributed context, but low value for a single-instance API of this
+  size relative to the effort. See `docs/DECISIONS.md` discussion history.
+- **No HTTP conditional-request support (`ETag`/`If-Match`).** Optimistic locking
+  (`docs/DECISIONS.md` #12) prevents lost updates server-side, but clients can't detect a
+  conflict themselves before writing via standard HTTP conditional headers - they only
+  find out via the `409 Concurrent Modification` response.
+- **No enforced coverage threshold.** JaCoCo is not currently wired into the build; test
+  coverage is reasoned about qualitatively (four distinct test layers, 40 tests) rather
+  than gated by a numeric threshold.
+- **Limited field validation.** A blank `name`/`brand` is rejected, but nothing else is
+  constrained (e.g. no maximum length) - the brief doesn't specify field-length limits,
+  so none were invented.
+- **No pagination** on `GET /api/v1/devices` - acceptable at the scale this brief implies,
+  would need revisiting if the device count were expected to grow large.

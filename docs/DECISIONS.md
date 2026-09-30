@@ -169,3 +169,29 @@ the two business-rule 409s. The `version` field is not exposed in `DeviceRespons
 this closes the internal race but does not implement full HTTP conditional-request
 semantics (`ETag`/`If-Match`) for clients to detect conflicts themselves before
 writing; documented as a possible future improvement in the README.
+
+## 13. Containerization: multi-stage Dockerfile, Alpine runtime, tests excluded from the build
+
+**Context** — Brief requires the application to be containerized.
+**Decision** — Two-stage `Dockerfile`: an `eclipse-temurin:21-jdk-jammy` build stage using
+the committed Maven Wrapper (so the image builds with the exact same Maven/JDK
+combination as local dev, not whatever a generic `maven:*` image happens to pin), and an
+`eclipse-temurin:21-jre-alpine` runtime stage containing only the packaged jar. The build
+stage runs `-DskipTests`; the container build environment has no Docker socket, so the
+repository/full-integration tests (which need Testcontainers) can't run inside it anyway
+- test execution stays a `./mvnw verify` responsibility in CI/local dev, not the image
+build's job. The runtime image runs as a non-root user and declares a `HEALTHCHECK`
+against `/actuator/health` using Alpine's built-in BusyBox `wget` (no extra package
+needed for that alone).
+**Alternatives** — A single-stage build: simpler Dockerfile, but ships the entire JDK and
+Maven's dependency cache in the final image instead of just a JRE and a jar - much
+larger, and exposes the build toolchain in a production image unnecessarily. A generic
+`maven:3.9-eclipse-temurin-21` build image: also works, but then the image build depends
+on whatever Maven version that tag pins rather than the exact wrapper-pinned version
+used everywhere else in this project.
+**Consequences** — Verified for real (not just asserted): built and ran the full stack via
+`docker compose up --build`, then exercised it over HTTP - create/get/list/patch, both
+409 invariant paths, an unmatched route returning a genuine 404 (confirming the
+exception-handler scoping fix from decision history holds under a real deployment, not
+just tests), Swagger UI, and `/actuator/prometheus` all worked correctly against the
+containerized app.
