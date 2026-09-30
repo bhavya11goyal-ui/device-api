@@ -66,6 +66,18 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void findsDevicesByBrandAndState() {
+        deviceRepository.saveAndFlush(Device.create("iPhone 16", "Apple", DeviceState.AVAILABLE));
+        deviceRepository.saveAndFlush(Device.create("iPhone 16 Pro", "Apple", DeviceState.IN_USE));
+        deviceRepository.saveAndFlush(Device.create("Galaxy S25", "Samsung", DeviceState.IN_USE));
+
+        List<Device> appleInUse = deviceRepository.findByBrandAndState("Apple", DeviceState.IN_USE);
+
+        assertThat(appleInUse).hasSize(1);
+        assertThat(appleInUse.get(0).getName()).isEqualTo("iPhone 16 Pro");
+    }
+
+    @Test
     void deletingARemovedDeviceLeavesNoTrace() {
         Device device = deviceRepository.saveAndFlush(Device.create("Old Phone", "Nokia", DeviceState.INACTIVE));
 

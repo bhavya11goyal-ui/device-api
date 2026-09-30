@@ -103,6 +103,19 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!--
+            Mockito's bundled Byte Buddy does not yet officially recognize
+            the Java 25 class file version, which breaks mocking concrete
+            classes (e.g. @MockBean DeviceService). This is the documented
+            workaround until Byte Buddy ships official Java 25 support.
+          -->
+          <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

@@ -6,6 +6,8 @@ import com.deviceapi.exception.DeviceInUseException;
 import com.deviceapi.exception.DeviceNameBrandLockedException;
 import com.deviceapi.exception.DeviceNotFoundException;
 import com.deviceapi.repository.DeviceRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,8 @@ import java.util.UUID;
 @Transactional
 public class DeviceService {
 
+    private static final Logger log = LoggerFactory.getLogger(DeviceService.class);
+
     private final DeviceRepository deviceRepository;
 
     public DeviceService(DeviceRepository deviceRepository) {
@@ -29,7 +33,9 @@ public class DeviceService {
     }
 
     public Device create(String name, String brand, DeviceState state) {
-        return deviceRepository.save(Device.create(name, brand, state));
+        Device device = deviceRepository.save(Device.create(name, brand, state));
+        log.info("Created device {} ({} {})", device.getId(), brand, name);
+        return device;
     }
 
     public Device update(UUID id, String name, String brand, DeviceState state) {
@@ -38,6 +44,7 @@ public class DeviceService {
         boolean nameChanged = name != null && !name.equals(device.getName());
         boolean brandChanged = brand != null && !brand.equals(device.getBrand());
         if ((nameChanged || brandChanged) && device.isInUse()) {
+            log.warn("Rejected name/brand change on in-use device {}", id);
             throw new DeviceNameBrandLockedException(id);
         }
 
@@ -57,26 +64,32 @@ public class DeviceService {
         return deviceRepository.findById(id).orElseThrow(() -> new DeviceNotFoundException(id));
     }
 
+    /**
+     * Fetches all devices, optionally filtered by brand and/or state. Both
+     * filters are optional and compose (brand AND state) rather than being
+     * separate endpoints - see docs/DECISIONS.md #8.
+     */
     @Transactional(readOnly = true)
-    public List<Device> getAll() {
+    public List<Device> search(String brand, DeviceState state) {
+        if (brand != null && state != null) {
+            return deviceRepository.findByBrandAndState(brand, state);
+        }
+        if (brand != null) {
+            return deviceRepository.findByBrand(brand);
+        }
+        if (state != null) {
+            return deviceRepository.findByState(state);
+        }
         return deviceRepository.findAll();
-    }
-
-    @Transactional(readOnly = true)
-    public List<Device> getByBrand(String brand) {
-        return deviceRepository.findByBrand(brand);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Device> getByState(DeviceState state) {
-        return deviceRepository.findByState(state);
     }
 
     public void delete(UUID id) {
         Device device = getById(id);
         if (device.isInUse()) {
+            log.warn("Rejected delete of in-use device {}", id);
             throw new DeviceInUseException(id);
         }
         deviceRepository.delete(device);
+        log.info("Deleted device {}", id);
     }
 }

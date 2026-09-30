@@ -12,4 +12,6 @@ public interface DeviceRepository extends JpaRepository<Device, UUID> {
     List<Device> findByBrand(String brand);
 
     List<Device> findByState(DeviceState state);
+
+    List<Device> findByBrandAndState(String brand, DeviceState state);
 }

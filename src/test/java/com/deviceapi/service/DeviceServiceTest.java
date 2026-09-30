@@ -155,26 +155,34 @@ class DeviceServiceTest {
     }
 
     @Test
-    void getAllDelegatesToRepository() {
+    void searchWithNoFiltersDelegatesToFindAll() {
         List<Device> devices = List.of(Device.create("Pixel 9", "Google", DeviceState.AVAILABLE));
         when(deviceRepository.findAll()).thenReturn(devices);
 
-        assertThat(deviceService.getAll()).isEqualTo(devices);
+        assertThat(deviceService.search(null, null)).isEqualTo(devices);
     }
 
     @Test
-    void getByBrandDelegatesToRepository() {
+    void searchWithBrandOnlyDelegatesToFindByBrand() {
         List<Device> devices = List.of(Device.create("Pixel 9", "Google", DeviceState.AVAILABLE));
         when(deviceRepository.findByBrand("Google")).thenReturn(devices);
 
-        assertThat(deviceService.getByBrand("Google")).isEqualTo(devices);
+        assertThat(deviceService.search("Google", null)).isEqualTo(devices);
     }
 
     @Test
-    void getByStateDelegatesToRepository() {
+    void searchWithStateOnlyDelegatesToFindByState() {
         List<Device> devices = List.of(Device.create("Pixel 9", "Google", DeviceState.IN_USE));
         when(deviceRepository.findByState(DeviceState.IN_USE)).thenReturn(devices);
 
-        assertThat(deviceService.getByState(DeviceState.IN_USE)).isEqualTo(devices);
+        assertThat(deviceService.search(null, DeviceState.IN_USE)).isEqualTo(devices);
+    }
+
+    @Test
+    void searchWithBrandAndStateDelegatesToTheCombinedQuery() {
+        List<Device> devices = List.of(Device.create("Pixel 9", "Google", DeviceState.IN_USE));
+        when(deviceRepository.findByBrandAndState("Google", DeviceState.IN_USE)).thenReturn(devices);
+
+        assertThat(deviceService.search("Google", DeviceState.IN_USE)).isEqualTo(devices);
     }
 }
