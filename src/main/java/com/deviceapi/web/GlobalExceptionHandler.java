@@ -14,7 +14,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
 
-@RestControllerAdvice
+/**
+ * Scoped to {@code com.deviceapi.web} (i.e. our own controllers) rather
+ * than a bare {@code @RestControllerAdvice}, which would apply globally -
+ * including to Actuator's endpoints and Spring MVC's own infrastructure
+ * (e.g. the 404 for an unmatched static resource). An unscoped catch-all
+ * previously turned Actuator's legitimate 404s into misleading 500s.
+ */
+@RestControllerAdvice(basePackageClasses = DeviceController.class)
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
