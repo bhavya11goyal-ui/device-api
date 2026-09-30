@@ -124,3 +124,48 @@ the Docker healthcheck and `/actuator/info`.
 signal.
 **Consequences** — One extra dependency, justified by direct use in the Docker
 healthcheck (not included speculatively).
+
+## 12. Concurrency safety: optimistic locking via `@Version`
+
+**Context** — `DeviceService.update()` and `delete()` each do read → check invariant →
+write as separate steps, with no locking. Postgres's default isolation
+(`READ COMMITTED`) does not stop the row from changing between the read and the write
+of two concurrent transactions. Concretely: two requests read the same `AVAILABLE`
+device; request A sets `state=IN_USE` and saves; request B never touched `state` but
+its in-memory copy still holds the stale `AVAILABLE` value from its own read, so its
+invariant check passes and its save silently overwrites A's `state` change back to
+`AVAILABLE` - a lost update, and a case where the "in use" invariant momentarily existed
+in the database and was then erased by a request that never intended to touch it.
+**Decision** — Add `@Version private Long version` (boxed, not primitive - see the
+javadoc on `Device`) to `Device` (migration `V2`). Hibernate then conditions every
+`UPDATE` on the version it read (`WHERE id = ? AND version = ?`) and bumps it on save;
+if another transaction already updated the row, the second writer's `UPDATE` affects
+zero rows and Hibernate/Spring throws `ObjectOptimisticLockingFailureException`, mapped
+to `409 Conflict` by `GlobalExceptionHandler` with a "re-fetch and retry" detail message.
+The boxed type matters for a subtler reason than the locking itself: `Device` has a
+manually-assigned id (decision #5), and Spring Data's default new-vs-existing check for
+a versioned entity treats a primitive version's `0` as "new" - which wrongly
+misclassifies an existing, never-updated device (version is also 0 the moment after
+creation) and would `INSERT` over an existing row on `save()` instead of `UPDATE`ing it.
+A boxed `Long` sidesteps this entirely: the check becomes "is version null," and only a
+truly new, unsaved `Device` has a null version - Hibernate always populates the real
+value when loading an existing row. (A custom `Persistable` implementation was tried
+first and works too, but is unnecessary machinery once the field is the correct type.)
+**Alternatives** — Pessimistic locking (`SELECT ... FOR UPDATE` via
+`@Lock(LockModeType.PESSIMISTIC_WRITE)`): guarantees correctness by blocking concurrent
+readers until the first transaction commits, but that's the wrong trade for this
+workload - concurrent edits to the *same* device are expected to be rare, not
+high-contention, so paying for a row lock (and the wait/timeout it imposes on every
+caller) on every update/delete isn't justified. A raw atomic
+`UPDATE ... WHERE id = ? AND state != 'IN_USE'`-style single statement would also close
+the window without a version column, but doesn't compose cleanly with the "only reject
+on an actual value change" nuance already in `DeviceService.update()`, and would mean
+abandoning the object-oriented read-modify-save style used everywhere else in the
+service.
+**Consequences** — One new column, one new field, and callers now need to handle a
+possible 409 on `update`/`delete` by retrying with a fresh read - this is surfaced to
+API consumers as a distinct "Concurrent Modification" title so it's not confused with
+the two business-rule 409s. The `version` field is not exposed in `DeviceResponse` -
+this closes the internal race but does not implement full HTTP conditional-request
+semantics (`ETag`/`If-Match`) for clients to detect conflicts themselves before
+writing; documented as a possible future improvement in the README.

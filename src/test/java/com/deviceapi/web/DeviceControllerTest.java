@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -178,6 +179,21 @@ class DeviceControllerTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Device Locked"));
+    }
+
+    @Test
+    void putTriggeringConcurrentModificationReturns409() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(deviceService.update(eq(id), any(), any(), any()))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Device.class, id));
+
+        mockMvc.perform(put("/api/v1/devices/{id}", id)
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"New Name","brand":"Google","state":"IN_USE"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Concurrent Modification"));
     }
 
     @Test

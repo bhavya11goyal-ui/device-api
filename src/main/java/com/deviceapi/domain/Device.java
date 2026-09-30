@@ -6,6 +6,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -17,6 +18,21 @@ import java.util.UUID;
  * violate rather than merely unenforced. All other invariants (name/brand
  * frozen while IN_USE, no delete while IN_USE) are enforced by
  * {@code DeviceService}, not here.
+ *
+ * <p>{@code version} guards against lost updates when two requests read
+ * and write the same device concurrently - see docs/DECISIONS.md #12.
+ *
+ * <p>{@code version} is a boxed {@code Long}, not a primitive, on purpose:
+ * Spring Data's default new-vs-existing check for a versioned entity
+ * branches on whether the version property is primitive. For a primitive,
+ * it treats {@code == 0} as "new" - which is wrong here, since a device
+ * loaded from the database but never yet updated also has version 0, and
+ * would be misclassified as new and INSERTed again instead of UPDATEd.
+ * For a boxed type it checks {@code == null} instead: a freshly
+ * {@link #create}d device has never had its version set, so it's null;
+ * Hibernate always populates the real value (0, 1, ...) when loading an
+ * existing row. The null-check alone is enough to tell them apart, with
+ * no need for a custom {@code Persistable} implementation.
  */
 @Entity
 @Table(name = "devices")
@@ -37,6 +53,9 @@ public class Device {
 
     @Column(name = "creation_time", nullable = false)
     private Instant creationTime;
+
+    @Version
+    private Long version;
 
     protected Device() {
         // required by JPA
@@ -85,5 +104,9 @@ public class Device {
 
     public Instant getCreationTime() {
         return creationTime;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

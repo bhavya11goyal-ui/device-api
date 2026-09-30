@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -47,6 +48,23 @@ public class GlobalExceptionHandler {
 
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problem.setTitle("Validation Failed");
+        return problem;
+    }
+
+    /**
+     * Thrown by Hibernate (via Spring's exception translation) when two
+     * requests read the same device concurrently and both try to write -
+     * see the {@code @Version} field on {@code Device} and
+     * docs/DECISIONS.md #12. The client's view was stale by the time it
+     * wrote; the fix from their side is to re-fetch and retry.
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleConcurrentModification(ObjectOptimisticLockingFailureException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "Device was modified concurrently by another request; re-fetch and retry"
+        );
+        problem.setTitle("Concurrent Modification");
         return problem;
     }
 
