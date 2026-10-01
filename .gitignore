@@ -20,6 +20,7 @@ CLAUDE.md
 
 ### Local reference material - not part of the deliverable ###
 *.pdf
+docs/DECISIONS_DETAILED.md
 
 ### Eclipse ###
 .apt_generated
