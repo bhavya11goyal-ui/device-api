@@ -101,9 +101,10 @@ use Testcontainers):
   (`docs/DECISIONS.md` #12) prevents lost updates server-side, but clients can't detect a
   conflict themselves before writing via standard HTTP conditional headers - they only
   find out via the `409 Concurrent Modification` response.
-- **No enforced coverage threshold.** JaCoCo is not currently wired into the build; test
-  coverage is reasoned about qualitatively (four distinct test layers, 40 tests) rather
-  than gated by a numeric threshold.
+- **No enforced coverage threshold.** The brief asks for "reasonable" coverage, not a
+  numeric gate, and 41 tests across four distinct layers already demonstrate that
+  qualitatively; a JaCoCo threshold would be a nice-to-have CI gate on top of coverage
+  that already exists, not something currently missing.
 - **No sorting control exposed.** `GET /api/v1/devices` accepts `page`/`size` (Spring
   Data's standard pagination params), and `sort` works since it's part of the same
   `Pageable` binding, but it isn't documented or validated against an allow-list of
