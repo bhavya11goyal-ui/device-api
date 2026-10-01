@@ -195,3 +195,27 @@ used everywhere else in this project.
 exception-handler scoping fix from decision history holds under a real deployment, not
 just tests), Swagger UI, and `/actuator/prometheus` all worked correctly against the
 containerized app.
+
+## 14. Pagination on the collection endpoint
+
+**Context** — `GET /api/v1/devices` returned the full unpaginated result set.
+**Decision** — `DeviceService.search`/`DeviceRepository` now take a `Pageable` and return
+`Page<Device>`; the controller binds it via `@PageableDefault(size = 20)` (standard
+`page`/`size`/`sort` query params) and returns `Page<DeviceResponse>`. Also enabled
+`@EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO)` - returning `Page` directly
+without it is explicitly flagged by Spring Data as not a stable JSON contract.
+**Consequences** — The collection endpoint's JSON shape changed from a flat array to
+`{"content": [...], "page": {...}}`; sorting isn't currently validated against an
+allow-list of fields (see README limitations).
+
+## 15. Composite index on `(brand, state)`
+
+**Context** — `findByBrandAndState` is a real query path (decision #8's combined
+filter), previously served only by two separate single-column indexes.
+**Decision** — Added a composite index on `(brand, state)` and dropped the now-redundant
+single-column `brand` index - a composite btree index also serves brand-only lookups via
+its leading-column prefix, so keeping both would mean paying index-maintenance cost on
+every write for no additional read benefit. The single-column `state` index stays, since
+state is the trailing column here and wouldn't be served by this index alone.
+**Consequences** — One index instead of two for the brand-related query paths; the
+state-only query path is unaffected.

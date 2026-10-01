@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -107,47 +108,47 @@ class DeviceControllerTest {
     @Test
     void searchWithNoParamsListsAllDevices() throws Exception {
         Device device = Device.create("Pixel 9", "Google", DeviceState.AVAILABLE);
-        when(deviceService.search(null, null)).thenReturn(List.of(device));
+        when(deviceService.search(isNull(), isNull(), any())).thenReturn(new PageImpl<>(List.of(device)));
 
         mockMvc.perform(get("/api/v1/devices"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.content.length()").value(1));
     }
 
     @Test
     void searchWithBrandFiltersByBrand() throws Exception {
         Device device = Device.create("Pixel 9", "Google", DeviceState.AVAILABLE);
-        when(deviceService.search("Google", null)).thenReturn(List.of(device));
+        when(deviceService.search(eq("Google"), isNull(), any())).thenReturn(new PageImpl<>(List.of(device)));
 
         mockMvc.perform(get("/api/v1/devices").param("brand", "Google"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].brand").value("Google"));
+                .andExpect(jsonPath("$.content[0].brand").value("Google"));
 
-        verify(deviceService).search(eq("Google"), isNull());
+        verify(deviceService).search(eq("Google"), isNull(), any());
     }
 
     @Test
     void searchWithStateFiltersByState() throws Exception {
         Device device = Device.create("Pixel 9", "Google", DeviceState.IN_USE);
-        when(deviceService.search(null, DeviceState.IN_USE)).thenReturn(List.of(device));
+        when(deviceService.search(isNull(), eq(DeviceState.IN_USE), any())).thenReturn(new PageImpl<>(List.of(device)));
 
         mockMvc.perform(get("/api/v1/devices").param("state", "IN_USE"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].state").value("IN_USE"));
+                .andExpect(jsonPath("$.content[0].state").value("IN_USE"));
 
-        verify(deviceService).search(isNull(), eq(DeviceState.IN_USE));
+        verify(deviceService).search(isNull(), eq(DeviceState.IN_USE), any());
     }
 
     @Test
     void searchWithBrandAndStateCombinesBothFilters() throws Exception {
         Device device = Device.create("Pixel 9", "Google", DeviceState.IN_USE);
-        when(deviceService.search("Google", DeviceState.IN_USE)).thenReturn(List.of(device));
+        when(deviceService.search(eq("Google"), eq(DeviceState.IN_USE), any())).thenReturn(new PageImpl<>(List.of(device)));
 
         mockMvc.perform(get("/api/v1/devices").param("brand", "Google").param("state", "IN_USE"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.content.length()").value(1));
 
-        verify(deviceService).search("Google", DeviceState.IN_USE);
+        verify(deviceService).search(eq("Google"), eq(DeviceState.IN_USE), any());
     }
 
     @Test

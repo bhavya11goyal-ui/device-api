@@ -9,6 +9,8 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -69,9 +71,9 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
         deviceRepository.saveAndFlush(Device.create("iPhone 16 Pro", "Apple", DeviceState.IN_USE));
         deviceRepository.saveAndFlush(Device.create("Galaxy S25", "Samsung", DeviceState.AVAILABLE));
 
-        List<Device> appleDevices = deviceRepository.findByBrand("Apple");
+        Page<Device> appleDevices = deviceRepository.findByBrand("Apple", Pageable.unpaged());
 
-        assertThat(appleDevices).hasSize(2)
+        assertThat(appleDevices.getContent()).hasSize(2)
                 .extracting(Device::getBrand)
                 .containsOnly("Apple");
     }
@@ -82,9 +84,9 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
         deviceRepository.saveAndFlush(Device.create("iPhone 16", "Apple", DeviceState.AVAILABLE));
         deviceRepository.saveAndFlush(Device.create("Galaxy S25", "Samsung", DeviceState.IN_USE));
 
-        List<Device> inUseDevices = deviceRepository.findByState(DeviceState.IN_USE);
+        Page<Device> inUseDevices = deviceRepository.findByState(DeviceState.IN_USE, Pageable.unpaged());
 
-        assertThat(inUseDevices).hasSize(2)
+        assertThat(inUseDevices.getContent()).hasSize(2)
                 .extracting(Device::getState)
                 .containsOnly(DeviceState.IN_USE);
     }
@@ -95,10 +97,10 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
         deviceRepository.saveAndFlush(Device.create("iPhone 16 Pro", "Apple", DeviceState.IN_USE));
         deviceRepository.saveAndFlush(Device.create("Galaxy S25", "Samsung", DeviceState.IN_USE));
 
-        List<Device> appleInUse = deviceRepository.findByBrandAndState("Apple", DeviceState.IN_USE);
+        Page<Device> appleInUse = deviceRepository.findByBrandAndState("Apple", DeviceState.IN_USE, Pageable.unpaged());
 
-        assertThat(appleInUse).hasSize(1);
-        assertThat(appleInUse.get(0).getName()).isEqualTo("iPhone 16 Pro");
+        assertThat(appleInUse.getContent()).hasSize(1);
+        assertThat(appleInUse.getContent().get(0).getName()).isEqualTo("iPhone 16 Pro");
     }
 
     @Test

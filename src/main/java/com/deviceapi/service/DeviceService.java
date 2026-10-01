@@ -8,10 +8,11 @@ import com.deviceapi.exception.DeviceNotFoundException;
 import com.deviceapi.repository.DeviceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -65,22 +66,23 @@ public class DeviceService {
     }
 
     /**
-     * Fetches all devices, optionally filtered by brand and/or state. Both
-     * filters are optional and compose (brand AND state) rather than being
-     * separate endpoints - see docs/DECISIONS.md #8.
+     * Fetches devices, optionally filtered by brand and/or state and
+     * always paginated. Both filters are optional and compose (brand AND
+     * state) rather than being separate endpoints - see
+     * docs/DECISIONS.md #8.
      */
     @Transactional(readOnly = true)
-    public List<Device> search(String brand, DeviceState state) {
+    public Page<Device> search(String brand, DeviceState state, Pageable pageable) {
         if (brand != null && state != null) {
-            return deviceRepository.findByBrandAndState(brand, state);
+            return deviceRepository.findByBrandAndState(brand, state, pageable);
         }
         if (brand != null) {
-            return deviceRepository.findByBrand(brand);
+            return deviceRepository.findByBrand(brand, pageable);
         }
         if (state != null) {
-            return deviceRepository.findByState(state);
+            return deviceRepository.findByState(state, pageable);
         }
-        return deviceRepository.findAll();
+        return deviceRepository.findAll(pageable);
     }
 
     public void delete(UUID id) {

@@ -2,16 +2,17 @@ package com.deviceapi.repository;
 
 import com.deviceapi.domain.Device;
 import com.deviceapi.domain.DeviceState;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface DeviceRepository extends JpaRepository<Device, UUID> {
 
-    List<Device> findByBrand(String brand);
+    Page<Device> findByBrand(String brand, Pageable pageable);
 
-    List<Device> findByState(DeviceState state);
+    Page<Device> findByState(DeviceState state, Pageable pageable);
 
-    List<Device> findByBrandAndState(String brand, DeviceState state);
+    Page<Device> findByBrandAndState(String brand, DeviceState state, Pageable pageable);
 }

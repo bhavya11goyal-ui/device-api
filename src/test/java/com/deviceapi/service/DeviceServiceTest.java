@@ -11,6 +11,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -156,33 +159,37 @@ class DeviceServiceTest {
 
     @Test
     void searchWithNoFiltersDelegatesToFindAll() {
-        List<Device> devices = List.of(Device.create("Pixel 9", "Google", DeviceState.AVAILABLE));
-        when(deviceRepository.findAll()).thenReturn(devices);
+        Pageable pageable = Pageable.unpaged();
+        Page<Device> devices = new PageImpl<>(List.of(Device.create("Pixel 9", "Google", DeviceState.AVAILABLE)));
+        when(deviceRepository.findAll(pageable)).thenReturn(devices);
 
-        assertThat(deviceService.search(null, null)).isEqualTo(devices);
+        assertThat(deviceService.search(null, null, pageable)).isEqualTo(devices);
     }
 
     @Test
     void searchWithBrandOnlyDelegatesToFindByBrand() {
-        List<Device> devices = List.of(Device.create("Pixel 9", "Google", DeviceState.AVAILABLE));
-        when(deviceRepository.findByBrand("Google")).thenReturn(devices);
+        Pageable pageable = Pageable.unpaged();
+        Page<Device> devices = new PageImpl<>(List.of(Device.create("Pixel 9", "Google", DeviceState.AVAILABLE)));
+        when(deviceRepository.findByBrand("Google", pageable)).thenReturn(devices);
 
-        assertThat(deviceService.search("Google", null)).isEqualTo(devices);
+        assertThat(deviceService.search("Google", null, pageable)).isEqualTo(devices);
     }
 
     @Test
     void searchWithStateOnlyDelegatesToFindByState() {
-        List<Device> devices = List.of(Device.create("Pixel 9", "Google", DeviceState.IN_USE));
-        when(deviceRepository.findByState(DeviceState.IN_USE)).thenReturn(devices);
+        Pageable pageable = Pageable.unpaged();
+        Page<Device> devices = new PageImpl<>(List.of(Device.create("Pixel 9", "Google", DeviceState.IN_USE)));
+        when(deviceRepository.findByState(DeviceState.IN_USE, pageable)).thenReturn(devices);
 
-        assertThat(deviceService.search(null, DeviceState.IN_USE)).isEqualTo(devices);
+        assertThat(deviceService.search(null, DeviceState.IN_USE, pageable)).isEqualTo(devices);
     }
 
     @Test
     void searchWithBrandAndStateDelegatesToTheCombinedQuery() {
-        List<Device> devices = List.of(Device.create("Pixel 9", "Google", DeviceState.IN_USE));
-        when(deviceRepository.findByBrandAndState("Google", DeviceState.IN_USE)).thenReturn(devices);
+        Pageable pageable = Pageable.unpaged();
+        Page<Device> devices = new PageImpl<>(List.of(Device.create("Pixel 9", "Google", DeviceState.IN_USE)));
+        when(deviceRepository.findByBrandAndState("Google", DeviceState.IN_USE, pageable)).thenReturn(devices);
 
-        assertThat(deviceService.search("Google", DeviceState.IN_USE)).isEqualTo(devices);
+        assertThat(deviceService.search("Google", DeviceState.IN_USE, pageable)).isEqualTo(devices);
     }
 }

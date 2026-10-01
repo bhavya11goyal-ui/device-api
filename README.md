@@ -35,7 +35,8 @@ DELETE /api/v1/devices/{id}           → delete
 
 `brand` and `state` are collapsed into query parameters on the collection endpoint rather
 than separate routes (`/devices/brand/{brand}`, `/devices/state/{state}`) — one resource,
-filterable, rather than duplicated endpoints.
+filterable, rather than duplicated endpoints. The collection endpoint is paginated
+(standard Spring Data `page`/`size`/`sort` query params, default page size 20).
 
 ## Tech stack
 
@@ -103,8 +104,8 @@ use Testcontainers):
 - **No enforced coverage threshold.** JaCoCo is not currently wired into the build; test
   coverage is reasoned about qualitatively (four distinct test layers, 40 tests) rather
   than gated by a numeric threshold.
-- **Limited field validation.** A blank `name`/`brand` is rejected, but nothing else is
-  constrained (e.g. no maximum length) - the brief doesn't specify field-length limits,
-  so none were invented.
-- **No pagination** on `GET /api/v1/devices` - acceptable at the scale this brief implies,
-  would need revisiting if the device count were expected to grow large.
+- **No sorting control exposed.** `GET /api/v1/devices` accepts `page`/`size` (Spring
+  Data's standard pagination params), and `sort` works since it's part of the same
+  `Pageable` binding, but it isn't documented or validated against an allow-list of
+  sortable fields - a client could request `sort=someInvalidField` and get a 500 rather
+  than a clean 400.
