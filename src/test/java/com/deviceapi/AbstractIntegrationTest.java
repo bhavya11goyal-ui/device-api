@@ -4,27 +4,32 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
  * Shared real-Postgres container for any test that needs a database
- * (repository slice tests, full integration tests). The container is
- * started once per JVM and reused across subclasses - Testcontainers
- * keeps it alive via its Ryuk resource-reaper rather than us stopping it
- * explicitly.
+ * (repository slice tests, full integration tests).
+ *
+ * <p>Deliberately uses the singleton-container pattern - a static
+ * initializer, no {@code @Testcontainers}/{@code @Container} - so the
+ * container genuinely lives for the whole JVM. With the JUnit extension,
+ * the container is stopped after each test class, which both wastes
+ * startup time and would leave a cached Spring context pointing at a
+ * dead database if a later class reused it. Ryuk removes the container
+ * when the JVM exits.
  */
-@Testcontainers
 @Tag("integration")
 public abstract class AbstractIntegrationTest {
 
-    @Container
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
                     .withDatabaseName("devices")
                     .withUsername("devices")
                     .withPassword("devices");
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void datasourceProperties(DynamicPropertyRegistry registry) {

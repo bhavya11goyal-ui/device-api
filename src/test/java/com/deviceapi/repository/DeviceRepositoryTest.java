@@ -118,10 +118,10 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
         Device secondReaderCopy = deviceRepository.findById(device.getId()).orElseThrow();
         entityManager.detach(secondReaderCopy);
 
-        firstReaderCopy.changeState(DeviceState.IN_USE);
+        firstReaderCopy.update(null, null, DeviceState.IN_USE);
         deviceRepository.saveAndFlush(firstReaderCopy);
 
-        secondReaderCopy.rename("Pixel 9 Pro", secondReaderCopy.getBrand());
+        secondReaderCopy.update("Pixel 9 Pro", null, null);
         assertThatThrownBy(() -> deviceRepository.saveAndFlush(secondReaderCopy))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
@@ -150,7 +150,7 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
                     Device read = deviceRepository.findById(id).orElseThrow();
                     bothHaveRead.countDown();
                     bothHaveRead.await(5, TimeUnit.SECONDS);
-                    read.changeState(DeviceState.IN_USE);
+                    read.update(null, null, DeviceState.IN_USE);
                     deviceRepository.saveAndFlush(read);
                     return null;
                 } catch (Exception ex) {
@@ -162,7 +162,7 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
                     Device read = deviceRepository.findById(id).orElseThrow();
                     bothHaveRead.countDown();
                     bothHaveRead.await(5, TimeUnit.SECONDS);
-                    read.rename("Pixel 9 Pro", read.getBrand());
+                    read.update("Pixel 9 Pro", null, null);
                     deviceRepository.saveAndFlush(read);
                     return null;
                 } catch (Exception ex) {
@@ -196,11 +196,11 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
         Device device = deviceRepository.saveAndFlush(Device.create("Pixel 9", "Google", DeviceState.AVAILABLE));
         assertThat(device.getVersion()).isEqualTo(0L);
 
-        device.rename("Pixel 9 Pro", device.getBrand());
+        device.update("Pixel 9 Pro", null, null);
         Device updated = deviceRepository.saveAndFlush(device);
         assertThat(updated.getVersion()).isEqualTo(1L);
 
-        updated.changeState(DeviceState.IN_USE);
+        updated.update(null, null, DeviceState.IN_USE);
         Device updatedAgain = deviceRepository.saveAndFlush(updated);
         assertThat(updatedAgain.getVersion()).isEqualTo(2L);
     }
@@ -218,6 +218,24 @@ class DeviceRepositoryTest extends AbstractIntegrationTest {
         // recognized new entity goes straight to INSERT with no lookup.
         assertThat(statistics.getEntityLoadCount()).isZero();
         assertThat(statistics.getEntityInsertCount()).isEqualTo(1);
+    }
+
+    /**
+     * The enum keeps invalid states out via the application, but the
+     * column is a VARCHAR - this proves the database rejects them too,
+     * for anything writing to the table outside the application.
+     */
+    @Test
+    void databaseRejectsAStateOutsideTheEnum() {
+        assertThatThrownBy(() -> {
+            entityManager.getEntityManager()
+                    .createNativeQuery("INSERT INTO devices (id, name, brand, state, creation_time, version) "
+                            + "VALUES (?, 'x', 'y', 'NOT_A_STATE', now(), 0)")
+                    .setParameter(1, UUID.randomUUID())
+                    .executeUpdate();
+            entityManager.flush();
+        }).isInstanceOf(Exception.class)
+                .hasMessageContaining("chk_devices_state");
     }
 
     @Test

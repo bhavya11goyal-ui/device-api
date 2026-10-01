@@ -1,6 +1,6 @@
 package com.deviceapi;
 
-import com.deviceapi.web.dto.CreateDeviceRequest;
+import com.deviceapi.web.dto.DeviceRequest;
 import com.deviceapi.web.dto.DeviceResponse;
 import com.deviceapi.web.dto.UpdateDeviceRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,8 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 
@@ -47,7 +49,7 @@ class DeviceApiIntegrationTest extends AbstractIntegrationTest {
     void fullDeviceLifecycle() {
         ResponseEntity<DeviceResponse> created = restTemplate.postForEntity(
                 "/api/v1/devices",
-                new CreateDeviceRequest("Pixel 9", "Google", AVAILABLE),
+                new DeviceRequest("Pixel 9", "Google", AVAILABLE),
                 DeviceResponse.class
         );
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -59,7 +61,8 @@ class DeviceApiIntegrationTest extends AbstractIntegrationTest {
         assertThat(fetched.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(fetched.getBody().name()).isEqualTo("Pixel 9");
 
-        restTemplate.put(deviceUri, new UpdateDeviceRequest(null, null, IN_USE));
+        // PUT is a full replacement, so it carries every field.
+        restTemplate.put(deviceUri, new DeviceRequest("Pixel 9", "Google", IN_USE));
         ResponseEntity<DeviceResponse> afterStateChange = restTemplate.getForEntity(deviceUri, DeviceResponse.class);
         assertThat(afterStateChange.getBody().state()).isEqualTo(IN_USE);
 
@@ -85,5 +88,48 @@ class DeviceApiIntegrationTest extends AbstractIntegrationTest {
         restTemplate.delete(deviceUri);
         ResponseEntity<String> afterDelete = restTemplate.getForEntity(deviceUri, String.class);
         assertThat(afterDelete.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void putRejectsAnIncompleteBody() {
+        ResponseEntity<DeviceResponse> created = restTemplate.postForEntity(
+                "/api/v1/devices",
+                new DeviceRequest("Pixel 9", "Google", AVAILABLE),
+                DeviceResponse.class
+        );
+        URI deviceUri = created.getHeaders().getLocation();
+
+        ResponseEntity<String> emptyPut = restTemplate.exchange(
+                deviceUri, HttpMethod.PUT, new HttpEntity<>("{}", jsonHeaders()), String.class);
+
+        assertThat(emptyPut.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        restTemplate.delete(deviceUri);
+    }
+
+    /**
+     * Exercised end to end rather than with a mocked exception, because
+     * the failure originates deep in Spring Data's sort resolution - only
+     * a real query proves it surfaces as a 400 and not a 500.
+     */
+    @Test
+    void unknownSortPropertyReturns400() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+                "/api/v1/devices?sort=notAField", String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void unparseableUuidReturns400() {
+        ResponseEntity<String> response = restTemplate.getForEntity("/api/v1/devices/abc", String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    private static HttpHeaders jsonHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return headers;
     }
 }

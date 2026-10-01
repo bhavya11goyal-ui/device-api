@@ -3,7 +3,7 @@ package com.deviceapi.web;
 import com.deviceapi.domain.Device;
 import com.deviceapi.domain.DeviceState;
 import com.deviceapi.service.DeviceService;
-import com.deviceapi.web.dto.CreateDeviceRequest;
+import com.deviceapi.web.dto.DeviceRequest;
 import com.deviceapi.web.dto.DeviceResponse;
 import com.deviceapi.web.dto.UpdateDeviceRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -55,7 +56,7 @@ public class DeviceController {
                     content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
     })
     public ResponseEntity<DeviceResponse> create(
-            @Valid @RequestBody CreateDeviceRequest request,
+            @Valid @RequestBody DeviceRequest request,
             UriComponentsBuilder uriBuilder
     ) {
         Device device = deviceService.create(request.name(), request.brand(), request.state());
@@ -77,30 +78,33 @@ public class DeviceController {
     @GetMapping
     @Operation(summary = "Fetch devices, optionally filtered by brand and/or state",
             description = "brand and state are optional and compose (both together AND-filter). "
-                    + "Supports standard Spring Data page/size/sort query params.")
+                    + "Supports standard Spring Data page/size/sort query params; "
+                    + "results are newest-first by default.")
     public Page<DeviceResponse> search(
             @Parameter(description = "Exact brand match") @RequestParam(required = false) String brand,
             @Parameter(description = "Exact state match") @RequestParam(required = false) DeviceState state,
-            @PageableDefault(size = 20) Pageable pageable
+            @PageableDefault(size = 20, sort = "creationTime", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return deviceService.search(brand, state, pageable).map(DeviceMapper::toResponse);
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Full update of a device",
-            description = "Same semantics as PATCH - fields left null are unchanged. "
+    @Operation(summary = "Full replacement of a device",
+            description = "All fields are required - the body must carry a complete representation. "
+                    + "Use PATCH to change only some fields. "
                     + "name/brand cannot change while the device is IN_USE.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Device updated"),
-            @ApiResponse(responseCode = "400", description = "Validation failed",
+            @ApiResponse(responseCode = "200", description = "Device replaced"),
+            @ApiResponse(responseCode = "400", description = "Validation failed (any field missing, blank, or oversized)",
                     content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "No device with that id",
                     content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "409", description = "name/brand change rejected (device is IN_USE), or a concurrent modification was detected",
                     content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
     })
-    public DeviceResponse replace(@PathVariable UUID id, @Valid @RequestBody UpdateDeviceRequest request) {
-        return update(id, request);
+    public DeviceResponse replace(@PathVariable UUID id, @Valid @RequestBody DeviceRequest request) {
+        Device device = deviceService.update(id, request.name(), request.brand(), request.state());
+        return DeviceMapper.toResponse(device);
     }
 
     @PatchMapping("/{id}")
@@ -117,10 +121,6 @@ public class DeviceController {
                     content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
     })
     public DeviceResponse patch(@PathVariable UUID id, @Valid @RequestBody UpdateDeviceRequest request) {
-        return update(id, request);
-    }
-
-    private DeviceResponse update(UUID id, UpdateDeviceRequest request) {
         Device device = deviceService.update(id, request.name(), request.brand(), request.state());
         return DeviceMapper.toResponse(device);
     }

@@ -10,8 +10,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.mapping.PropertyReferenceException;
+import org.springframework.data.util.TypeInformation;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -42,7 +44,7 @@ class DeviceControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private DeviceService deviceService;
 
     @Test
@@ -69,6 +71,87 @@ class DeviceControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {"name":"","brand":"Google","state":"AVAILABLE"}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void malformedJsonBodyReturns400() throws Exception {
+        mockMvc.perform(post("/api/v1/devices")
+                        .contentType("application/json")
+                        .content("{not json"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unknownStateValueInBodyReturns400() throws Exception {
+        mockMvc.perform(post("/api/v1/devices")
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"Pixel 9","brand":"Google","state":"BROKEN"}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void blankFieldViolationIsReportedAgainstTheActualFieldName() throws Exception {
+        mockMvc.perform(patch("/api/v1/devices/{id}", UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"   "}
+                                """))
+                .andExpect(status().isBadRequest())
+                // must name the field the client sent, not a derived
+                // property of an internal validation method
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.startsWith("name:")));
+    }
+
+    @Test
+    void unknownFieldInBodyReturns400RatherThanBeingIgnored() throws Exception {
+        mockMvc.perform(patch("/api/v1/devices/{id}", UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("""
+                                {"creationTime":"2020-01-01T00:00:00Z"}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unparseableUuidInPathReturns400() throws Exception {
+        mockMvc.perform(get("/api/v1/devices/{id}", "abc"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unknownStateValueInQueryParamReturns400() throws Exception {
+        mockMvc.perform(get("/api/v1/devices").param("state", "BROKEN"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unknownSortPropertyReturns400() throws Exception {
+        when(deviceService.search(any(), any(), any()))
+                .thenThrow(new PropertyReferenceException("foo", TypeInformation.of(Device.class), List.of()));
+
+        mockMvc.perform(get("/api/v1/devices").param("sort", "foo"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid Sort Property"));
+    }
+
+    @Test
+    void putWithEmptyBodyReturns400() throws Exception {
+        mockMvc.perform(put("/api/v1/devices/{id}", UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void putMissingASingleFieldReturns400() throws Exception {
+        mockMvc.perform(put("/api/v1/devices/{id}", UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"Pixel 9","brand":"Google"}
                                 """))
                 .andExpect(status().isBadRequest());
     }

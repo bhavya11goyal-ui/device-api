@@ -2,8 +2,6 @@ package com.deviceapi.service;
 
 import com.deviceapi.domain.Device;
 import com.deviceapi.domain.DeviceState;
-import com.deviceapi.exception.DeviceInUseException;
-import com.deviceapi.exception.DeviceNameBrandLockedException;
 import com.deviceapi.exception.DeviceNotFoundException;
 import com.deviceapi.repository.DeviceRepository;
 import org.slf4j.Logger;
@@ -16,10 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Owns the three domain invariants (creation time is immutable - enforced
- * structurally by {@link Device} having no setter for it; name/brand frozen
- * while IN_USE; no delete while IN_USE). Controllers and any other caller
- * must go through this service rather than the repository directly.
+ * Orchestrates persistence around {@link Device}, which owns the domain
+ * rules itself: creation time is immutable because there is no setter for
+ * it, and name/brand-while-in-use and delete-while-in-use are enforced by
+ * {@code Device.update} and {@code Device.assertDeletable}. Keeping the
+ * rules in the entity means no future caller can bypass them by mutating
+ * a device some other way - see docs/DECISIONS.md #3.
  */
 @Service
 @Transactional
@@ -41,22 +41,7 @@ public class DeviceService {
 
     public Device update(UUID id, String name, String brand, DeviceState state) {
         Device device = getById(id);
-
-        boolean nameChanged = name != null && !name.equals(device.getName());
-        boolean brandChanged = brand != null && !brand.equals(device.getBrand());
-        if ((nameChanged || brandChanged) && device.isInUse()) {
-            log.warn("Rejected name/brand change on in-use device {}", id);
-            throw new DeviceNameBrandLockedException(id);
-        }
-
-        device.rename(
-                name != null ? name : device.getName(),
-                brand != null ? brand : device.getBrand()
-        );
-        if (state != null) {
-            device.changeState(state);
-        }
-
+        device.update(name, brand, state);
         return deviceRepository.save(device);
     }
 
@@ -87,10 +72,7 @@ public class DeviceService {
 
     public void delete(UUID id) {
         Device device = getById(id);
-        if (device.isInUse()) {
-            log.warn("Rejected delete of in-use device {}", id);
-            throw new DeviceInUseException(id);
-        }
+        device.assertDeletable();
         deviceRepository.delete(device);
         log.info("Deleted device {}", id);
     }

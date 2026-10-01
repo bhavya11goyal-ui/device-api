@@ -11,12 +11,28 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  jackson:
+    deserialization:
+      # Reject fields the DTO doesn't declare instead of ignoring them, so
+      # a request that tries to set a server-controlled field (e.g.
+      # creationTime) gets a 400 rather than a 200 that silently did
+      # nothing.
+      fail-on-unknown-properties: true
+
+server:
+  # Let in-flight requests finish when the container receives SIGTERM.
+  shutdown: graceful
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      # Exposes /actuator/health/liveness and /readiness for orchestrators.
+      probes:
+        enabled: true
 
 springdoc:
   swagger-ui:
