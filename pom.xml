@@ -112,13 +112,39 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <!--
+            @{argLine} (not ${argLine}) is required here so JaCoCo's
+            prepare-agent javaagent flag - injected into this property at
+            build time - actually reaches the test JVM instead of being
+            silently dropped by an earlier-resolved, hard-coded value.
+
             Mockito's bundled Byte Buddy does not yet officially recognize
             the Java 25 class file version, which breaks mocking concrete
-            classes (e.g. @MockBean DeviceService). This is the documented
-            workaround until Byte Buddy ships official Java 25 support.
+            classes (e.g. @MockBean DeviceService). The experimental flag
+            is the documented workaround until Byte Buddy ships official
+            Java 25 support.
           -->
-          <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+          <argLine>@{argLine} -Dnet.bytebuddy.experimental=true</argLine>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.12</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

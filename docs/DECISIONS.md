@@ -219,3 +219,22 @@ every write for no additional read benefit. The single-column `state` index stay
 state is the trailing column here and wouldn't be served by this index alone.
 **Consequences** — One index instead of two for the brand-related query paths; the
 state-only query path is unaffected.
+
+## 16. JaCoCo: report only, no enforced coverage threshold
+
+**Context** — The brief asks for "reasonable" test coverage, not a specific numeric
+target.
+**Decision** — Added the `jacoco-maven-plugin` (`prepare-agent` + `report`, bound to the
+`test` phase) so every `./mvnw verify` produces a real coverage report
+(`target/site/jacoco/index.html`) - currently 98% instruction / 95% branch coverage - but
+did not add a `check` execution that fails the build below a threshold.
+**Alternatives** — An enforced minimum (e.g. 80% line coverage): a stronger-looking
+signal, but picking that number is itself an arbitrary judgment call, and a hard gate can
+block an unrelated change over coverage in a file that doesn't matter to it. Report-only
+gives the same visibility without that failure mode.
+**Consequences** — Coverage is visible and auditable on every build, but nothing
+automated stops it from regressing - that's a human-review responsibility instead of a
+build-enforced one. One Maven-plugin wiring note: the existing `maven-surefire-plugin`
+`argLine` had to switch from a hard-coded string to `@{argLine} -Dnet.bytebuddy...` so
+JaCoCo's injected `-javaagent` flag isn't silently dropped by the earlier, statically
+resolved value.
